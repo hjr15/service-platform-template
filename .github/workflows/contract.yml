@@ -1,0 +1,53 @@
+name: Tool contract
+
+# Validates the dependency contract with the lab-soe host-tooling
+# prerequisite (INF-347): the version intersection in tools.yaml must not
+# diverge for core tools. Runs diff-only here (a bare runner is not a
+# provisioned host, so the PATH check — see tests/contract.sh — is left for
+# local/dev use). The weekly schedule catches upstream drift and opens an
+# issue.
+
+on:
+  pull_request:
+    paths:
+      - 'tools.yaml'
+      - 'tests/**'
+      - '.github/workflows/contract.yml'
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC — pairs with Renovate
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Run contract test (diff-only)
+        env:
+          CONTRACT_DIFF_ONLY: '1'
+        run: ./tests/contract.sh
+
+      - name: Open drift issue (scheduled failures only)
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count="$(gh issue list --state open --search 'tool-contract drift in:title' --json number -q 'length')"
+          if [ "$count" = "0" ]; then
+            gh issue create \
+              --title "tool-contract drift: lab-soe ↔ template" \
+              --body "The weekly tool-contract check failed: a core tool's pin diverges from lab-soe's \`tools.yaml\`, or the manifest could not be compared. See the failing run for details, then reconcile \`tools.yaml\` in this repo or lab-soe."
+          else
+            echo "drift issue already open — not duplicating"
+          fi
