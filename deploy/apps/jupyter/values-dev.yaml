@@ -5,8 +5,8 @@ image:
   # Pin a specific datascience-notebook digest (never `latest`) so the
   # deploy is reproducible. Renovate PRs upstream bumps. Resolve a digest
   # for a given tag with:
-  #   docker buildx imagetools inspect jupyter/datascience-notebook:lab-4.0.7
-  tag: lab-4.0.7@sha256:476c6e673e7d5d8b5059f8680b1c6a988942a79263da651bf302dc696ab311f2
+  #   docker buildx imagetools inspect quay.io/jupyter/datascience-notebook:lab-4.5.8
+  tag: lab-4.5.8@sha256:ded87b32b354754a7d5e0438a1ed7d65501a25b4a79e5e66e5e507f52e1d68c8
 
 auth:
   # Token printed in pod logs on first start; copy from there to log in.

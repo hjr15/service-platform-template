@@ -16,7 +16,7 @@
 
 services:
   jupyter:
-    image: jupyter/datascience-notebook:lab-4.0.7
+    image: quay.io/jupyter/datascience-notebook:lab-4.5.8
     container_name: jupyter
     restart: unless-stopped
     ports:
