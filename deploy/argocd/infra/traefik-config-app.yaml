@@ -1,0 +1,31 @@
+# Cluster-wide HTTP->HTTPS redirect via k3s HelmChartConfig.
+# Applied at sync-wave -1 within the infra group so it converges
+# before cert-manager (default wave 0) and any later workload Ingress
+# that should serve HTTPS only.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hjr15/service-platform-template.git
+    targetRevision: main
+    path: traefik-config
+    directory:
+      recurse: false
+      include: '*.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

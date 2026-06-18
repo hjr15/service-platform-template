@@ -1,0 +1,28 @@
+# Root app-of-apps. Bootstrap-applied by scripts/k8s-up.sh; every other
+# Application cascades from it.
+# Watches deploy/argocd/infra/ and deploy/argocd/apps/ subdirectories.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-platform-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hjr15/service-platform-template.git
+    targetRevision: main
+    path: deploy/argocd
+    directory:
+      recurse: false
+      include: '{infra-app-of-apps.yaml,apps-app-of-apps.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

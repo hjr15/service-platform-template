@@ -1,0 +1,38 @@
+image:
+  repository: docker.io/jupyter/datascience-notebook
+  # Pinned by digest (never `latest`) so a deploy is reproducible. The tag
+  # is kept alongside the digest for human readability; the digest is what
+  # actually pins. Renovate opens PRs for upstream bumps.
+  tag: lab-4.0.7@sha256:476c6e673e7d5d8b5059f8680b1c6a988942a79263da651bf302dc696ab311f2
+  pullPolicy: IfNotPresent
+
+# Token auth — Jupyter generates a random token on first start unless
+# overridden. For lab use, allow a fixed token via env var (set in
+# values-dev.yaml or via env_secret).
+auth:
+  token: ""   # empty = use Jupyter's auto-generated token (printed in pod logs)
+
+persistence:
+  size: 10Gi
+  # storageClassName left unset — uses cluster default
+  mountPath: /home/jovyan/work
+
+ingress:
+  enabled: true
+  className: traefik
+  host: jupyter.svc.localhost
+  tls:
+    enabled: true
+    secretName: jupyter-tls
+    # selfsigned is the only ClusterIssuer the default install ships
+    # (cert-manager/clusterissuer-selfsigned.yaml). Switch to
+    # letsencrypt-prod only after wiring the Route 53 example issuer.
+    clusterIssuer: selfsigned
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi

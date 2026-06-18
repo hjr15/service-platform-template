@@ -1,0 +1,34 @@
+# Per-environment overrides for the deploy/apps/jupyter/chart Helm chart.
+# This file is the source of truth for "what does jupyter look like in dev".
+
+image:
+  # Pin a specific datascience-notebook digest (never `latest`) so the
+  # deploy is reproducible. Renovate PRs upstream bumps. Resolve a digest
+  # for a given tag with:
+  #   docker buildx imagetools inspect jupyter/datascience-notebook:lab-4.0.7
+  tag: lab-4.0.7@sha256:476c6e673e7d5d8b5059f8680b1c6a988942a79263da651bf302dc696ab311f2
+
+auth:
+  # Token printed in pod logs on first start; copy from there to log in.
+  # Empty = jupyter auto-generates one per pod start (more secure).
+  token: ""
+
+persistence:
+  size: 10Gi
+
+ingress:
+  host: jupyter.svc.localhost
+  tls:
+    # Use the in-cluster selfsigned issuer (the only one shipped by
+    # default). Without this override the chart default would request a
+    # cert from an issuer that isn't installed and the Ingress 404s.
+    clusterIssuer: selfsigned
+    secretName: jupyter-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi

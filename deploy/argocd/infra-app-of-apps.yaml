@@ -1,0 +1,27 @@
+# Infra-tier app-of-apps. Sync wave -1 ensures cert-manager (and future
+# infra components) come up before workloads.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-app-of-apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hjr15/service-platform-template.git
+    targetRevision: main
+    path: deploy/argocd/infra
+    directory:
+      recurse: false
+      exclude: 'infra-app-of-apps.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

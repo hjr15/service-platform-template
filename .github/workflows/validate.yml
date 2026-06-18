@@ -1,0 +1,60 @@
+name: Validate manifests
+
+on:
+  pull_request:
+    paths:
+      - 'argocd/**'
+      - 'cert-manager/**'
+      - 'deploy/**'
+      - 'traefik-config/**'
+      - 'docs/examples/**'
+      - '.github/workflows/validate.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v3.20.2
+
+      - name: Install yq + kubeconform + kube-score
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar -xz -C /tmp
+          sudo install /tmp/kubeconform /usr/local/bin/
+
+      - name: helm lint custom charts
+        run: |
+          if [ -d deploy/apps/jupyter/chart ]; then
+            helm lint deploy/apps/jupyter/chart
+          fi
+
+      - name: helm template + kubeconform — cert-manager
+        if: hashFiles('cert-manager/values-dev.yaml') != ''
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm template cert-manager jetstack/cert-manager \
+            --version v1.20.2 \
+            -f cert-manager/values-dev.yaml \
+            -n cert-manager \
+            | kubeconform -strict -summary -ignore-missing-schemas
+
+      - name: kubeconform plain manifests under deploy/argocd
+        run: |
+          find deploy/argocd -name '*.yaml' \
+            -exec kubeconform -strict -summary -ignore-missing-schemas {} +
+
+      - name: yaml-lint all yaml
+        run: |
+          find . -name '*.yaml' -not -path './node_modules/*' -not -path './.git/*' \
+            -exec yq eval . {} \; > /dev/null

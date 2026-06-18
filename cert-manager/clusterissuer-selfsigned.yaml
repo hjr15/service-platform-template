@@ -1,0 +1,10 @@
+# Default ClusterIssuer for the template — no external dependencies.
+# Browser will warn about untrusted cert; everything else works.
+# To upgrade to real Let's Encrypt certs, see
+# docs/cert-manager.md and docs/examples/cert-manager-letsencrypt-route53/
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}

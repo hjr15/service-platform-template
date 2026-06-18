@@ -1,0 +1,24 @@
+# Cluster-wide HTTP -> HTTPS redirect.
+#
+# k3d/k3s installs Traefik via its built-in helm-controller. We don't own
+# the Traefik chart directly — instead, k3s watches HelmChartConfig
+# resources in `kube-system` and merges their `valuesContent` into the
+# active Traefik chart's values, triggering a Traefik re-deploy.
+#
+# We use `additionalArguments` (rather than the chart's `ports.web.redirectTo`
+# helper) because the helper hardcodes scheme=https only and does not expose
+# `permanent`; we need a 301, not a 302. The three flags below produce, on
+# every HTTP request, a permanent redirect to the matching HTTPS host.
+# Applies to every Ingress on the cluster — jupyter, n8n, vaultwarden, and
+# argocd included.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    additionalArguments:
+      - "--entrypoints.web.http.redirections.entrypoint.to=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"

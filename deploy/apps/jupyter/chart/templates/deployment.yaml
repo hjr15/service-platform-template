@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyter
+  labels: {{- include "jupyter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate    # PVC RWO can't be mounted on two pods at once
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jupyter
+  template:
+    metadata:
+      labels: {{- include "jupyter.labels" . | nindent 8 }}
+    spec:
+      # K8s auto-injects env vars like JUPYTER_PORT=tcp://<svc-ip>:8888
+      # for every Service in the namespace (legacy Docker-link compat).
+      # Jupyter parses JUPYTER_PORT as int → crash. Disable the lot.
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 100
+        fsGroup: 100
+      containers:
+        - name: jupyter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8888
+          env:
+            - name: JUPYTER_ENABLE_LAB
+              value: "yes"
+            {{- with .Values.auth.token }}
+            - name: JUPYTER_TOKEN
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: work
+              mountPath: {{ .Values.persistence.mountPath }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /api
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: work
+          persistentVolumeClaim:
+            claimName: jupyter-work

@@ -1,0 +1,28 @@
+# Environment / secrets
+.env
+.env.local
+
+# App working data (per-host state)
+**/app-data/
+**/.ipynb_checkpoints/
+**/__pycache__/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tooling scratch
+.playwright-mcp/
+
+# Helm
+charts/*.tgz
+
+# Backup files from sops or manual edits
+*.enc.yaml.bak
+*.yaml.bak

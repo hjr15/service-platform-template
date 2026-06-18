@@ -1,0 +1,60 @@
+# Per-environment overrides for the guerzon vaultwarden chart.
+# Chart pin: vaultwarden 0.36.3 from https://guerzon.github.io/vaultwarden
+# (source repoURL lives in deploy/argocd/apps/vaultwarden-app.yaml).
+#
+# Secrets: the vaultwarden-secrets Secret is applied by scripts/k8s-up.sh
+# from .env values (bootstrap-applied, not committed — see
+# docs/architecture.md "Secrets pattern"). The chart references it via
+# adminToken.existingSecret.
+
+image:
+  registry: docker.io
+  repository: vaultwarden/server
+  tag: "1.35.8"
+
+# Hostname + protocol — vaultwarden uses this for CSP, WebSocket origin,
+# email links, etc. Must include the protocol scheme.
+domain: https://vaultwarden.svc.localhost
+
+# Reference the bootstrap-applied Secret instead of inlining the token.
+adminToken:
+  existingSecret: vaultwarden-secrets
+  existingSecretKey: ADMIN_TOKEN
+
+# Mobile clients use WebSocket at /notifications/hub for live sync.
+websocket:
+  enabled: true
+
+# Persistence — 2 GiB PVC for the vaultwarden SQLite DB + attachments.
+# Chart's storage.data schema: name (required, becomes PVC name prefix),
+# size, class (storageClassName), path (mount path inside container),
+# keepPvc, accessMode. Empty 'class' = use cluster default (local-path).
+storage:
+  data:
+    name: vaultwarden-data
+    size: 2Gi
+    class: ""
+    path: /data
+    keepPvc: false
+    accessMode: ReadWriteOnce
+
+# Posture
+signupsAllowed: false
+invitationsAllowed: false
+disableIconDownload: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+ingress:
+  enabled: true
+  class: traefik
+  hostname: vaultwarden.svc.localhost
+  tlsSecret: vaultwarden-tls
+  additionalAnnotations:
+    cert-manager.io/cluster-issuer: selfsigned

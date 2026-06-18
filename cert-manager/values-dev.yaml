@@ -1,0 +1,26 @@
+# cert-manager Helm chart values for the local k3d cluster.
+# Chart pin: cert-manager v1.20.2 from https://charts.jetstack.io
+# (source repoURL lives in deploy/argocd/infra/cert-manager-app.yaml).
+# Reference: https://cert-manager.io/docs/installation/helm/
+
+# Required: install CRDs as part of the chart install (cert-manager
+# does not auto-install CRDs by default).
+crds:
+  enabled: true
+  keep: true
+
+# Single-replica everything — local dev cluster.
+replicaCount: 1
+webhook:
+  replicaCount: 1
+cainjector:
+  replicaCount: 1
+
+# Resource caps so cert-manager does not crowd out the workloads.
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

@@ -1,0 +1,28 @@
+# Apps-tier app-of-apps. Sync wave 0 — runs after infra is Ready.
+# Watches deploy/argocd/apps/ and manages the workload Applications
+# (jupyter, n8n, vaultwarden); drop a new <name>-app.yaml here to add one.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apps-app-of-apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hjr15/service-platform-template.git
+    targetRevision: main
+    path: deploy/argocd/apps
+    directory:
+      recurse: false
+      exclude: 'apps-app-of-apps.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,75 @@
+# jupyter — annotated config reference + standalone runner.
+#
+# Single-user Jupyter Lab via the upstream datascience-notebook image.
+# For multi-user, see JupyterHub instead.
+#
+# Two purposes:
+#   1) Catalogue of relevant env vars + chart values mapping.
+#   2) Quick "try without k8s" entry point:
+#         cd deploy/apps/jupyter
+#         docker compose up
+#      The container prints a token URL on first start.
+#
+# Image tags + reference:
+#   https://quay.io/repository/jupyter/datascience-notebook
+#   https://jupyter-docker-stacks.readthedocs.io/
+
+services:
+  jupyter:
+    image: jupyter/datascience-notebook:lab-4.0.7
+    container_name: jupyter
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+
+    environment:
+      # ─── Auth ───────────────────────────────────────────────────────
+      # Set a fixed access token (otherwise jupyter generates a random
+      # one printed in pod/container logs on first start).
+      # Helm: deploy/apps/jupyter/values-dev.yaml auth.token
+      # - JUPYTER_TOKEN=replace_me
+
+      # OR run with NO authentication (developer convenience — DON'T
+      # do this on a public network):
+      # - JUPYTER_TOKEN=
+      # - JUPYTER_ALLOW_INSECURE_WRITES=true
+
+      # ─── UI mode ────────────────────────────────────────────────────
+      # 'yes' (default): Jupyter Lab interface.
+      # 'no': legacy Notebook interface.
+      - JUPYTER_ENABLE_LAB=yes
+
+      # ─── Container user ─────────────────────────────────────────────
+      # Default uid 1000 (jovyan). Change via:
+      # - NB_UID=1001
+      # - NB_GID=1001
+      # When changing, run with --user root and let the start script
+      # rechown the working dir.
+
+      # ─── Resources / kernels ────────────────────────────────────────
+      # The datascience-notebook image bundles Python + R + Julia. To
+      # add custom kernels, mount additional install scripts at startup:
+      # - JUPYTER_ENABLE_LAB=yes
+      # And use `start-notebook.sh` features described in the
+      # docker-stacks docs.
+
+      # ─── Persistence ────────────────────────────────────────────────
+      # Working directory inside container — mounted from the volume.
+      # Helm: persistence.mountPath
+      # Default: /home/jovyan/work
+
+      # Copy local notebooks here on first run via volume mount.
+
+    volumes:
+      - jupyter-work:/home/jovyan/work
+      # Optional: mount a local directory of notebooks for live editing
+      # - ./notes:/home/jovyan/work/notes:ro
+
+    # K8s-only consideration: when running this app under k8s, the
+    # JUPYTER_PORT env var collides with k8s' Service-link injection
+    # (k8s sets JUPYTER_PORT=tcp://<svc-ip>:8888 by default for any
+    # Service named 'jupyter'). Helm chart sets enableServiceLinks=false
+    # to avoid this. Not relevant for standalone compose.
+
+volumes:
+  jupyter-work:

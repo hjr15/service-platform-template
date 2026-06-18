@@ -1,0 +1,29 @@
+# jupyter Application — workload tier (apps-app-of-apps cascade).
+# Single-source: the chart and values both live in this repo, so
+# multi-source isn't needed. ArgoCD reads the chart from the path.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jupyter
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hjr15/service-platform-template.git
+    targetRevision: main
+    path: deploy/apps/jupyter/chart
+    helm:
+      releaseName: jupyter
+      valueFiles:
+        - ../values-dev.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jupyter
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

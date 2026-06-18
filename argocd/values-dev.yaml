@@ -1,0 +1,74 @@
+# ArgoCD chart values for the local k3d cluster.
+# Chart pin: argo-cd 9.5.10 from https://argoproj.github.io/argo-helm
+# (installed by scripts/k8s-up.sh Phase 2).
+# Reference: https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd
+
+global:
+  domain: argocd.svc.localhost
+
+# argocd-server runs in HTTP mode behind Traefik; TLS termination is
+# skipped entirely for local dev — no cert to provision for the ArgoCD UI
+# (see docs/architecture.md "ArgoCD TLS exception").
+configs:
+  params:
+    server.insecure: true
+    # Disable git submodule cloning on the repo-server. This template
+    # vendors no submodules — charts come from upstream registries and
+    # in-repo paths — so there is nothing to clone. Re-enable if you add
+    # a chart to the repo as a git submodule.
+    reposerver.enable.git.submodule: "false"
+  cm:
+    # Disable sample TLS-related warnings in the UI.
+    admin.enabled: "true"
+    # ArgoCD treats Application objects in the argocd namespace as
+    # belonging to the local in-cluster destination. Leave default.
+    timeout.reconciliation: 60s
+
+server:
+  # Server listens on HTTP only because params.server.insecure is true.
+  extraArgs:
+    - --insecure
+  service:
+    type: ClusterIP
+
+  # Standard Ingress at http://argocd.svc.localhost via the bundled Traefik.
+  # Every hostname uses the RFC 6761 reserved `.localhost` suffix and
+  # resolves to 127.0.0.1 through /etc/hosts (see `make print-hosts`), so
+  # there is no public DNS dependency for local use:
+  #   127.0.0.1   argocd.svc.localhost jupyter.svc.localhost n8n.svc.localhost vaultwarden.svc.localhost
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: argocd.svc.localhost
+    tls: false
+    annotations:
+      # Traefik routes argocd-server's HTTP traffic; gRPC-Web is enabled
+      # by argocd-server itself when --insecure is set.
+      traefik.ingress.kubernetes.io/router.entrypoints: web
+
+# Some charts are pulled over OCI (e.g. the 8gears n8n registry).
+# HELM_EXPERIMENTAL_OCI enables OCI support in the repo-server's Helm.
+repoServer:
+  env:
+    - name: HELM_EXPERIMENTAL_OCI
+      value: "1"
+
+# Single-replica everything — local dev cluster.
+controller:
+  replicas: 1
+applicationSet:
+  replicas: 1
+notifications:
+  enabled: false
+dex:
+  enabled: false
+
+# Resource caps so ArgoCD stays light on a laptop.
+redis:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

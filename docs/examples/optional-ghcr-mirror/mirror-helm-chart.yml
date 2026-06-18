@@ -1,0 +1,55 @@
+name: Mirror Helm chart to GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart_name:
+        description: "Chart name (e.g. cert-manager, vaultwarden, n8n, argo-cd)"
+        required: true
+      upstream_repo:
+        description: "Upstream Helm repo URL (e.g. https://charts.jetstack.io)"
+        required: true
+      version:
+        description: "Chart version to mirror (e.g. 1.16.1)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.20.2
+
+      - name: Login to GHCR via helm registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Add upstream + pull chart
+        run: |
+          set -euo pipefail
+          helm repo add --force-update upstream "${{ inputs.upstream_repo }}"
+          helm repo update
+          helm pull upstream/"${{ inputs.chart_name }}" \
+            --version "${{ inputs.version }}" \
+            --destination /tmp/charts
+
+      - name: Push to ghcr.io/<your-github-user>/charts
+        run: |
+          set -euo pipefail
+          TGZ=$(ls /tmp/charts/${{ inputs.chart_name }}-${{ inputs.version }}.tgz)
+          helm push "$TGZ" oci://ghcr.io/<your-github-user>/charts
+
+      - name: Verify the chart is pullable from the mirror
+        run: |
+          set -euo pipefail
+          helm pull "oci://ghcr.io/<your-github-user>/charts/${{ inputs.chart_name }}" \
+            --version "${{ inputs.version }}" \
+            --destination /tmp/verify
+          test -f "/tmp/verify/${{ inputs.chart_name }}-${{ inputs.version }}.tgz"

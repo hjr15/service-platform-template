@@ -1,0 +1,33 @@
+# n8n Application — workload tier.
+# Multi-source: chart from the 8gears OCI registry, values from this repo.
+# n8n-secrets Secret is bootstrap-applied by scripts/k8s-up.sh — not
+# managed by ArgoCD (see docs/architecture.md "Secrets pattern").
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: n8n
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: 8gears.container-registry.com/library
+      chart: n8n
+      targetRevision: 2.0.1
+      helm:
+        releaseName: n8n
+        valueFiles:
+          - $values/deploy/apps/n8n/values-dev.yaml
+    - repoURL: https://github.com/hjr15/service-platform-template.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: n8n
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

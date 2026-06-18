@@ -1,0 +1,120 @@
+# vaultwarden — annotated config reference + standalone runner.
+#
+# Bitwarden-compatible password manager server. Self-host your vault.
+#
+# Two purposes:
+#   1) Catalogue of every vaultwarden env var with what it does + the
+#      corresponding helm values key (if any).
+#   2) Quick "try without k8s" entry point:
+#         cd deploy/apps/vaultwarden
+#         export VAULTWARDEN_ADMIN_TOKEN=$(openssl rand -hex 48)
+#         docker compose up
+#      Then browse http://localhost:8080.
+#
+# Full env var reference:
+#   https://github.com/dani-garcia/vaultwarden/wiki
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:1.35.8
+    container_name: vaultwarden
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+
+    environment:
+      # ─── Core URL / domain ──────────────────────────────────────────
+      # Public URL that clients (browser, mobile) use. MUST include
+      # protocol scheme (https://) for production — vaultwarden uses
+      # this to build CSP, websocket origin, email links.
+      # Helm: deploy/apps/vaultwarden/values-dev.yaml domain
+      - DOMAIN=https://vaultwarden.svc.localhost
+
+      # ─── Admin panel ────────────────────────────────────────────────
+      # Token guarding the /admin endpoint. Generate with:
+      #   openssl rand -hex 48
+      # If unset, admin panel is disabled entirely (acceptable for
+      # single-user setups using only the user vault).
+      # vaultwarden also accepts an Argon2-hashed token (more secure
+      # against timing attacks); use `vaultwarden hash` to generate one.
+      # Helm: adminToken.existingSecret references 'vaultwarden-secrets'
+      # (Secret applied by scripts/k8s-up.sh from .env).
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
+
+      # ─── Signups / invitations ──────────────────────────────────────
+      # Allow anyone to register on the public URL? For selfhost: false.
+      - SIGNUPS_ALLOWED=false
+
+      # Allow admins to invite new users (still requires admin login).
+      - INVITATIONS_ALLOWED=false
+
+      # Restrict signups to a specific email domain (whitelist).
+      # - SIGNUPS_DOMAINS_WHITELIST=example.com,other.com
+
+      # ─── Privacy / network calls ────────────────────────────────────
+      # Disable favicon downloads from external sites (privacy).
+      - DISABLE_ICON_DOWNLOAD=true
+
+      # Disable HaveIBeenPwned password check (privacy — sends a hash
+      # prefix to api.pwnedpasswords.com).
+      # - PASSWORD_HINTS_ALLOWED=false
+
+      # ─── Web vault ──────────────────────────────────────────────────
+      # Set to false to disable the bundled web vault entirely (e.g. if
+      # only mobile/browser-extension clients are used).
+      # - WEB_VAULT_ENABLED=true
+
+      # ─── Database ───────────────────────────────────────────────────
+      # SQLite (default — single file at /data/db.sqlite3) or:
+      # - DATABASE_URL=postgresql://user:pass@host/dbname
+      # - DATABASE_URL=mysql://user:pass@host/dbname
+
+      # ─── SMTP — for password reset / invite emails ──────────────────
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_FROM=vaultwarden@example.com
+      # - SMTP_PORT=587
+      # - SMTP_SECURITY=starttls
+      # - SMTP_USERNAME=user
+      # - SMTP_PASSWORD=pass
+
+      # ─── Push notifications ─────────────────────────────────────────
+      # If you want to forward push notifications to Bitwarden's mobile
+      # apps via the upstream Bitwarden push server, you need API
+      # credentials from https://bitwarden.com/host/.
+      # - PUSH_ENABLED=true
+      # - PUSH_INSTALLATION_ID=<your-id>
+      # - PUSH_INSTALLATION_KEY=<your-key>
+
+      # ─── Logging ────────────────────────────────────────────────────
+      # error | warn | info | debug | trace
+      - LOG_LEVEL=warn
+      - EXTENDED_LOGGING=true
+
+      # ─── Hardening ──────────────────────────────────────────────────
+      # Bind only to loopback inside container (compose) — Helm
+      # template uses 0.0.0.0 + ClusterIP/Ingress in front
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=80
+
+      # Rate-limit admin endpoints (anti-bruteforce)
+      - ADMIN_RATELIMIT_MAX_BURST=3
+      - ADMIN_RATELIMIT_SECONDS=60
+
+      # Trash retention (days). Trashed items auto-purged after this.
+      - TRASH_AUTO_DELETE_DAYS=30
+
+    volumes:
+      - vaultwarden-data:/data
+
+    # Run as the vaultwarden user (uid 1000 in upstream image).
+    # Read-only root filesystem — defence-in-depth.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+
+volumes:
+  vaultwarden-data:

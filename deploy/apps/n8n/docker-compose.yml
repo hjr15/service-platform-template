@@ -1,0 +1,108 @@
+# n8n — annotated config reference + standalone runner.
+#
+# Two purposes:
+#   1) Living catalogue of every n8n env var with what it does + the
+#      corresponding helm values key (if any).
+#   2) Quick "try without k8s" entry point:
+#         cd deploy/apps/n8n
+#         export N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
+#         docker compose up
+#      Then browse http://localhost:5678 (no TLS in this mode).
+#
+# Full env var reference: https://docs.n8n.io/hosting/configuration/environment-variables/
+
+services:
+  n8n:
+    image: n8nio/n8n:2.18.5
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # ─── Core hostname/URL settings ─────────────────────────────────
+      # Public hostname for n8n. Used in CSP, webhook URL builders, etc.
+      # Helm: deploy/apps/n8n/values-dev.yaml main.config.n8n.host
+      - N8N_HOST=n8n.svc.localhost
+
+      # Editor base URL — used for password reset emails, webhook callbacks.
+      # Should match N8N_HOST + protocol.
+      # Helm: main.config.n8n.editor_base_url
+      - N8N_EDITOR_BASE_URL=https://n8n.svc.localhost
+
+      # Webhook base URL — usually same as editor_base_url.
+      # Trailing slash matters.
+      # Helm: main.config.webhook.url
+      - WEBHOOK_URL=https://n8n.svc.localhost/
+
+      # Internal listen port (the chart's Service maps to this).
+      - N8N_PORT=5678
+
+      # ─── Encryption ─────────────────────────────────────────────────
+      # Master key for encrypting workflow credentials in the DB.
+      # CHANGING THIS BREAKS ALL EXISTING CREDENTIALS — back them up first.
+      # Generate with: openssl rand -hex 32
+      # Helm: deploy/apps/n8n/values-dev.yaml references existingSecret
+      # 'n8n-secrets' applied by scripts/k8s-up.sh from .env.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+
+      # ─── Database ───────────────────────────────────────────────────
+      # sqlite (default) or postgresdb. SQLite is fine for single-user;
+      # Postgres recommended for production.
+      # Helm: db.type
+      - DB_TYPE=sqlite
+
+      # Postgres-specific (only when DB_TYPE=postgresdb):
+      # - DB_POSTGRESDB_HOST=postgres
+      # - DB_POSTGRESDB_PORT=5432
+      # - DB_POSTGRESDB_DATABASE=n8n
+      # - DB_POSTGRESDB_USER=n8n
+      # - DB_POSTGRESDB_PASSWORD=replace_me
+
+      # ─── Authentication ─────────────────────────────────────────────
+      # First user creation flow defaults to interactive owner setup
+      # at first launch. To skip + force basic auth instead:
+      # - N8N_BASIC_AUTH_ACTIVE=true
+      # - N8N_BASIC_AUTH_USER=admin
+      # - N8N_BASIC_AUTH_PASSWORD=replace_me
+
+      # ─── Email (SMTP) — for password reset, invites ─────────────────
+      # - N8N_EMAIL_MODE=smtp
+      # - N8N_SMTP_HOST=smtp.example.com
+      # - N8N_SMTP_PORT=587
+      # - N8N_SMTP_USER=user
+      # - N8N_SMTP_PASS=pass
+      # - N8N_SMTP_SENDER=n8n@example.com
+
+      # ─── Execution mode ─────────────────────────────────────────────
+      # 'regular' (default — single n8n process handles workflows) or
+      # 'queue' (separate worker pods consume from Redis — for scale).
+      # Queue mode requires Redis + EXECUTIONS_PROCESS=main.
+      # - EXECUTIONS_MODE=regular
+
+      # ─── Logging / observability ────────────────────────────────────
+      # debug | info (default) | warn | error
+      # - N8N_LOG_LEVEL=info
+      # - N8N_LOG_OUTPUT=console
+      # - N8N_METRICS=false
+
+      # ─── Timezone ───────────────────────────────────────────────────
+      - GENERIC_TIMEZONE=UTC
+
+      # ─── Misc ───────────────────────────────────────────────────────
+      # Custom data dir (workflows + db). Default: /home/node/.n8n
+      # - N8N_USER_FOLDER=/home/node/.n8n
+
+      # Disable the "diagnostics" telemetry call to n8n's servers
+      # - N8N_DIAGNOSTICS_ENABLED=false
+
+      # Disable the version-update check banner in the UI
+      # - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+
+      # Disable templates panel
+      # - N8N_TEMPLATES_ENABLED=false
+
+    volumes:
+      - n8n-data:/home/node/.n8n
+
+volumes:
+  n8n-data:

@@ -1,0 +1,62 @@
+# Per-environment overrides for the 8gears n8n chart.
+# Chart pin: n8n 2.0.1 from 8gears.container-registry.com/library (OCI;
+# source repoURL lives in deploy/argocd/apps/n8n-app.yaml).
+#
+# Secrets: the n8n-secrets Secret is applied by scripts/k8s-up.sh from
+# .env values (bootstrap-applied, not committed — see docs/architecture.md
+# "Secrets pattern"). The chart references it via
+# main.secret.n8n.encryption_key.existingSecret.
+
+image:
+  tag: "2.18.5"
+
+main:
+  config:
+    n8n:
+      host: n8n.svc.localhost
+      protocol: https
+      port: 5678
+      editor_base_url: https://n8n.svc.localhost
+    webhook:
+      url: https://n8n.svc.localhost/
+
+  secret:
+    n8n:
+      encryption_key:
+        existingSecret: n8n-secrets
+        key: N8N_ENCRYPTION_KEY
+
+  persistence:
+    enabled: true
+    # Schema: enabled+type+size, NOT just enabled. With enabled:true and
+    # no type:dynamic the chart silently uses emptyDir (no error).
+    type: dynamic
+    size: 5Gi
+    mountPath: /home/node/.n8n
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# SQLite default — fine for a single-node lab. Postgres is a possible
+# future upgrade for heavier use.
+db:
+  type: sqlite
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned
+  hosts:
+    - host: n8n.svc.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts: [n8n.svc.localhost]
+      secretName: n8n-tls
