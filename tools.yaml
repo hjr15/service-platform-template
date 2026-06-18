@@ -1,0 +1,24 @@
+# Host tool manifest — single source of truth for the tooling this template
+# requires or uses. `scripts/install-deps.sh` installs the pinned ones;
+# `tests/contract.sh` validates the `core` tools resolve on PATH and diffs
+# the shared pins against the upstream prerequisite lab-soe
+# (https://github.com/hjr15/lab-soe). See INF-347.
+#
+# Fields:
+#   name    — the command as it lands on PATH
+#   version — exact pin (from scripts/install-deps.sh), or "latest" when the
+#             tool is host-provided / floats
+#   role    — core     : required for `make k8s-up` (the runtime happy path)
+#             ci       : used only by CI (.github/workflows/validate.yml)
+#             optional : convenience / dormant
+tools:
+  - { name: docker,      version: latest,  role: core }      # host prerequisite; not installed by install-deps
+  - { name: k3d,         version: v5.7.5,  role: core }
+  - { name: helm,        version: v3.20.2, role: core }
+  - { name: kubectl,     version: v1.32.0, role: core }
+  - { name: jq,          version: latest,  role: core }      # apt
+  - { name: argocd,      version: v3.3.8,  role: optional }  # CLI for debugging; k8s-up.sh does not require it
+  - { name: yq,          version: v4.45.1, role: ci }
+  - { name: kubeconform, version: v0.6.7,  role: ci }
+  - { name: sops,        version: v3.9.4,  role: optional }  # dormant (future SOPS path)
+  - { name: age,         version: v1.2.1,  role: optional }  # dormant
