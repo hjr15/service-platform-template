@@ -26,3 +26,9 @@ charts/*.tgz
 # Backup files from sops or manual edits
 *.enc.yaml.bak
 *.yaml.bak
+
+# ruflo / claude-flow plugin runtime state — machine-local, regenerable (INF-772)
+.claude-flow/
+.claude/proven-config.json
+.claude/.proven-config-version
+.claude/worktrees/
