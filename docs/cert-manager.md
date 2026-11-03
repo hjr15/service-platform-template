@@ -42,6 +42,40 @@ The main reasons to switch to Let's Encrypt:
 
 The trade-off is that you need a real public domain and API access to your DNS provider. The cluster itself does not need to be publicly reachable.
 
+## Middle path: a private CA you trust once
+
+If the domain only exists on your machine (an `/etc/hosts` name) — so Let's Encrypt cannot validate it — but you still want no browser warnings, sign every certificate with your own root CA and import that root once per device.:
+
+1. Create a root CA outside the repo, **name-constrained to your domain** so a leaked key cannot vouch for any other site:
+   ```bash
+   mkdir -p -m 700 ~/.config/local-ca && cd ~/.config/local-ca
+   openssl ecparam -name prime256v1 -genkey -noout -out ca.key && chmod 600 ca.key
+   openssl req -x509 -new -key ca.key -sha256 -days 3650 -out ca.crt \
+     -subj "/CN=my local CA" \
+     -addext "basicConstraints=critical,CA:TRUE" \
+     -addext "keyUsage=critical,keyCertSign,cRLSign" \
+     -addext "nameConstraints=critical,permitted;DNS:svc.localhost"
+   ```
+   Replace `svc.localhost` with your `DOMAIN`.
+2. Load it as the issuer's Secret and create a CA ClusterIssuer:
+   ```bash
+   kubectl create secret tls local-ca -n cert-manager --cert=ca.crt --key=ca.key \
+     --dry-run=client -o yaml | kubectl apply --server-side -f -
+   ```
+   ```yaml
+   apiVersion: cert-manager.io/v1
+   kind: ClusterIssuer
+   metadata:
+     name: local-ca
+   spec:
+     ca:
+       secretName: local-ca
+   ```
+3. Switch Ingress annotations from `selfsigned` to `local-ca` (as in step 5 of the Cloudflare example).
+4. Trust `ca.crt` on each device. For the system store: `sudo cp ca.crt /usr/local/share/ca-certificates/local-ca.crt && sudo update-ca-certificates`. For Firefox, import it under Settings → Certificates → Authorities. For Chromium and Electron: `certutil -d sql:$HOME/.pki/nssdb -A -t C,, -n local-ca -i ca.crt`.
+
+Back up `ca.key`, because losing it means every device has to re-trust a new root.
+
 ## Upgrade path: Let's Encrypt DNS-01
 
 cert-manager supports two ACME challenge types. **HTTP-01** requires the cluster to be reachable from the internet (Let's Encrypt's servers make an HTTP request to verify domain ownership). **DNS-01** does not — it proves ownership by creating a TXT record in your DNS zone using an API key. For a local cluster, DNS-01 is the right choice.
@@ -81,10 +115,10 @@ stringData:
 Apply it:
 
 ```bash
-kubectl apply -f cloudflare-api-token-secret.yaml
+kubectl apply --server-side -f cloudflare-api-token-secret.yaml
 ```
 
-Do not commit this file — it contains a credential. Add it to `.gitignore` or delete it after applying.
+Do not commit this file — it contains a credential. Add it to `.gitignore` or delete it after applying. Use `--server-side`: a client-side `kubectl apply` of a `stringData` Secret copies the token in plain text into the `kubectl.kubernetes.io/last-applied-configuration` annotation.
 
 ### 3. Create a ClusterIssuer for Cloudflare DNS-01
 
@@ -170,7 +204,15 @@ docs/examples/cert-manager-letsencrypt-route53/
    AWS_HOSTED_ZONE_ID=Z...
    ```
 
-2. `make k8s-up` (or re-run `scripts/k8s-up.sh`) — Phase 3 reads the AWS variables from `.env` and applies the `route53-credentials` Secret to the `cert-manager` namespace.
+2. Create the `route53-credentials` Secret in the `cert-manager` namespace. `make k8s-up` does **not** do this for you — the AWS variables in `.env` are only read by this command:
+   ```bash
+   set -a; . ./.env; set +a
+   kubectl create secret generic route53-credentials -n cert-manager \
+     --from-literal=access-key-id="$AWS_ACCESS_KEY_ID" \
+     --from-literal=secret-access-key="$AWS_SECRET_ACCESS_KEY" \
+     --dry-run=client -o yaml | kubectl apply --server-side -f -
+   ```
+   Use `--server-side`: a client-side `kubectl apply` copies every Secret value in plain text into the `kubectl.kubernetes.io/last-applied-configuration` annotation.
 
 3. Edit `docs/examples/cert-manager-letsencrypt-route53/clusterissuer-letsencrypt-prod.yaml` — replace `<your-acme-email>`, `<your-domain>`, `<your-route53-hosted-zone-id>`, and the region with your values.
 
